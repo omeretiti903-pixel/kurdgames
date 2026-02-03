@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ku" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BAZ SQUAD | Professional Auth</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+        body { 
+            background: radial-gradient(circle, #1a0000 0%, #000 100%); 
+            color: white; display: flex; justify-content: center; align-items: center; height: 100vh; 
+        }
+        
+        .auth-container { 
+            background: rgba(10, 10, 10, 0.95); border: 1px solid #ff0000; padding: 40px; 
+            border-radius: 30px; width: 380px; text-align: center;
+            box-shadow: 0 0 25px rgba(255, 0, 0, 0.3);
+        }
+
+        h2 { color: #ff0000; margin-bottom: 25px; letter-spacing: 3px; font-size: 28px; }
+
+        input { 
+            width: 100%; padding: 14px; margin: 10px 0; 
+            background: #111; border: 1px solid #333; color: white; border-radius: 15px; outline: none;
+            text-align: center; transition: 0.3s;
+        }
+        input:focus { border-color: #ff0000; }
+
+        .btn { 
+            width: 100%; padding: 14px; margin-top: 15px; background: #ff0000; 
+            color: white; border: none; border-radius: 15px; font-weight: bold; cursor: pointer;
+            transition: 0.3s; font-size: 16px;
+        }
+        .btn:hover { background: #cc0000; transform: scale(1.02); }
+
+        .google-btn {
+            width: 100%; padding: 12px; margin-top: 15px; background: white; 
+            color: black; border: none; border-radius: 15px; font-weight: bold; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+        }
+
+        .link { color: #888; font-size: 14px; margin-top: 20px; cursor: pointer; display: block; }
+        .link:hover { color: #ff0000; }
+
+        hr { border: 0; border-top: 1px solid #333; margin: 25px 0; }
+
+        /* ستایلکردنی SweetAlert */
+        .swal2-popup { background: #111 !important; color: white !important; border: 1px solid red !important; border-radius: 20px !important; }
+        .swal2-confirm { background-color: red !important; }
+    </style>
+</head>
+<body>
+
+    <div class="auth-container" id="login-box">
+        <h2>KURD GAMES</h2>
+        <input type="email" id="l-email" placeholder="ئیمەیل">
+        <input type="password" id="l-pass" placeholder="پاسۆرد">
+        <button class="btn" onclick="login()">چوونە ژوورێ</button>
+        
+        <hr>
+        <button class="google-btn" onclick="googleLogin()">
+            <img src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png" width="20">
+            Login with Google
+        </button>
+
+        <p class="link" onclick="toggleAuth()">هەژمارەکا نوو چێ بکە</p>
+    </div>
+
+    <div class="auth-container" id="signup-box" style="display: none;">
+        <h2>SIGN UP</h2>
+        <input type="text" id="s-name" placeholder="ناڤێ تە">
+        <input type="email" id="s-email" placeholder="ئیمەیلێ ڕاستەقینە">
+        <input type="password" id="s-pass" placeholder="پاسۆرد (٦ پیت یان زێدەتر)">
+        <button class="btn" onclick="signup()">تۆمارکرن و فرێکرنا لینکێ</button>
+        <p class="link" onclick="toggleAuth()">حسابا تە یا هەی؟ بچۆ ژوورێ</p>
+    </div>
+
+    <script>
+        const config = {
+  apiKey: "AIzaSyDeglQMPEjTP4PgaOdiIG-lDKqvdy27Epw",
+  authDomain: "dirojkrd.firebaseapp.com",
+  databaseURL: "https://dirojkrd-default-rtdb.firebaseio.com",
+  projectId: "dirojkrd",
+  storageBucket: "dirojkrd.firebasestorage.app",
+  messagingSenderId: "391319156899",
+  appId: "1:391319156899:web:fe825636e848eee4c66716",
+  measurementId: "G-JXEGZJ5LSF"
+        };
+        firebase.initializeApp(config);
+        const auth = firebase.auth();
+        const db = firebase.database();
+
+        function toggleAuth() {
+            const lb = document.getElementById('login-box'), sb = document.getElementById('signup-box');
+            lb.style.display = lb.style.display === "none" ? "block" : "none";
+            sb.style.display = sb.style.display === "none" ? "block" : "none";
+        }
+
+        function toast(title, icon = 'info') {
+            Swal.fire({ title: title, icon: icon, confirmButtonText: 'تەمام' });
+        }
+
+        // --- ۱. تۆمارکردن بە ئیمەیل و ناردنی لینک ---
+        function signup() {
+            const n = document.getElementById('s-name').value.trim();
+            const e = document.getElementById('s-email').value.trim();
+            const p = document.getElementById('s-pass').value;
+
+            if(!n || !e || p.length < 6) return toast("تکایە پێزانینان تەواو بکە!", "warning");
+
+            auth.createUserWithEmailAndPassword(e, p).then(res => {
+                res.user.sendEmailVerification().then(() => {
+                    Swal.fire({
+                        title: 'پەیامەکا نوو! 📧',
+                        text: 'لینکێ پشتڕاستکرنێ بۆ ئیمەیلا تە هاتە فرێکرن. کلیک لەسەر لینکەکە بکە پاشان وەرە لۆگین بکە.',
+                        icon: 'success'
+                    }).then(() => {
+                        const nId = res.user.uid.replace(/\D/g, '').substring(0, 8);
+                        db.ref('all_players/' + res.user.uid).set({ name: n, numericID: nId, pic: "" });
+                        auth.signOut().then(() => location.reload());
+                    });
+                });
+            }).catch(err => toast(err.message, "error"));
+        }
+
+        // --- ۲. لۆگین بە ئیمەیل ---
+        function login() {
+            const e = document.getElementById('l-email').value.trim();
+            const p = document.getElementById('l-pass').value;
+
+            if(!e || !p) return toast("ئیمەیل و پاسۆرد بنووسە", "warning");
+
+            auth.signInWithEmailAndPassword(e, p).then(res => {
+                if (res.user.emailVerified) {
+                    window.location.href = "index.html"; 
+                } else {
+                    toast("تکایە بەراهییێ حسابا خۆ پشتڕاست بکە لە ناو ئیمەیلەکەت ⚠️", "warning");
+                    auth.signOut();
+                }
+            }).catch(() => toast("ئیمەیل یان پاسۆرد خەلەتە", "error"));
+        }
+
+        // --- ۳. لۆگین بە گووگڵ ---
+        function googleLogin() {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            auth.signInWithPopup(provider).then(res => {
+                const user = res.user;
+                const nId = user.uid.replace(/\D/g, '').substring(0, 8);
+                db.ref('all_players/' + user.uid).update({
+                    name: user.displayName,
+                    numericID: nId,
+                    pic: user.photoURL
+                }).then(() => { window.location.href = "index.html"; });
+            }).catch(() => toast("ئاریشەیەک لە لۆگینی گووگڵ هەبوو", "error"));
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ku" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>پڕۆفایلێ من | BAZ SQUAD</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <style>
+        :root { --accent: #00d2ff; --bg: #0b0e14; --card: #161b22; }
+        body { background: var(--bg); color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        
+        .profile-card {
+            background: var(--card);
+            width: 350px;
+            padding: 30px;
+            border-radius: 25px;
+            border: 1px solid #333;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .avatar-container { position: relative; width: 100px; height: 100px; margin: 0 auto 20px; }
+        #user-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 3px solid var(--accent); }
+        
+        .edit-img-btn {
+            position: absolute; bottom: 0; right: 0;
+            background: var(--accent); border: none; border-radius: 50%;
+            width: 30px; height: 30px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+        }
+
+        input {
+            width: 100%; padding: 12px; margin: 10px 0;
+            background: #000; border: 1px solid #333;
+            border-radius: 10px; color: white; text-align: center;
+        }
+
+        .save-btn {
+            width: 100%; padding: 12px; margin-top: 20px;
+            background: var(--accent); border: none; border-radius: 10px;
+            font-weight: bold; cursor: pointer; transition: 0.3s;
+        }
+
+        .save-btn:hover { opacity: 0.8; transform: scale(0.98); }
+        .back-link { display: block; margin-top: 15px; color: gray; text-decoration: none; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+    <div class="profile-card">
+        <div class="avatar-container">
+            <img id="user-img" src="https://cdn-icons-png.flaticon.com/512/149/149071.png" alt="Profile">
+            <button class="edit-img-btn" onclick="document.getElementById('img-input').click()">📸</button>
+            <input type="file" id="img-input" style="display: none;" accept="image/*" onchange="previewImg(this)">
+        </div>
+
+        <h2 id="display-name">ناڤێ یوزەری</h2>
+        <p id="display-email" style="color: gray; font-size: 14px; margin-bottom: 20px;">email@example.com</p>
+
+        <hr style="border: 0.5px solid #222;">
+
+        <label style="font-size: 12px; color: var(--accent);">گوهۆڕینا ناڤی</label>
+        <input type="text" id="new-name" placeholder="ناڤێ نوی بنڤێسه">
+
+        <label style="font-size: 12px; color: var(--accent);">گوهۆڕینا ئیمەیلی</label>
+        <input type="email" id="new-email" placeholder="ئیمەیلا نوی">
+
+        <label style="font-size: 12px; color: var(--accent);">گوهۆڕینا پاسۆردێ</label>
+        <input type="password" id="new-pass" placeholder="پاسۆردێ نوی بنڤێسه">
+
+        <button class="save-btn" onclick="updateProfile()">پاشکەفتن (Save)</button>
+        
+        <a href="index.html" class="back-link">🔙 زڤڕین بۆ سەرەکی</a>
+    </div>
+
+    <script>
+        // لێرە Firebase Config بکار بینە وەک یێن پەیجێن دی
+        const firebaseConfig = {
+            apiKey: "AIzaSyDeglQMPEjTP4PgaOdiIG-lDKqvdy27Epw",
+            authDomain: "dirojkrd.firebaseapp.com",
+            databaseURL: "https://dirojkrd-default-rtdb.firebaseio.com",
+            projectId: "dirojkrd"
+        };
+        firebase.initializeApp(firebaseConfig);
+
+        const auth = firebase.auth();
+        const db = firebase.database();
+
+        // بارکرنا داتایێن یوزەری
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                document.getElementById('display-name').innerText = user.displayName || "بێ ناڤ";
+                document.getElementById('display-email').innerText = user.email;
+                document.getElementById('new-name').value = user.displayName || "";
+                document.getElementById('new-email').value = user.email;
+                if(user.photoURL) document.getElementById('user-img').src = user.photoURL;
+            } else {
+                window.location.href = "login.html";
+            }
+        });
+
+        // نیشاندانا وێنەی بەری پاشکەفتنێ
+        function previewImg(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = e => document.getElementById('user-img').src = e.target.result;
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        async function updateProfile() {
+            const user = auth.currentUser;
+            const newName = document.getElementById('new-name').value;
+            const newEmail = document.getElementById('new-email').value;
+            const newPass = document.getElementById('new-pass').value;
+
+            try {
+                // 1. گوهۆڕینا ناڤی
+                if(newName !== user.displayName) {
+                    await user.updateProfile({ displayName: newName });
+                    await db.ref('all_players/' + user.uid).update({ name: newName });
+                }
+
+                // 2. گوهۆڕینا ئیمەیلی (تێبینی: پێدڤی ب Re-authentication هەیە ئەگەر دەمەکێ درێژ بیت چۆبیتە ژوور)
+                if(newEmail !== user.email) {
+                    await user.updateEmail(newEmail);
+                }
+
+                // 3. گوهۆڕینا پاسۆردێ
+                if(newPass.length >= 6) {
+                    await user.updatePassword(newPass);
+                }
+
+                alert("هەمی پێزانین ب سەرکەفتی هاتنە گوهۆڕین! ✅");
+                location.reload();
+
+            } catch (error) {
+                alert("خەلەتیەک هەبوو: " + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

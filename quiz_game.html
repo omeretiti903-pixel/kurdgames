@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ku" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT HERO | 30 LEVELS</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <style>
+        /* Leaderboard Style */
+        .leaderboard-box { background: #111; margin: 20px auto; max-width: 600px; border-radius: 20px; padding: 15px; border: 1px solid #30363d; }
+        .leader-item { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #222; }
+        .leader-item:last-child { border: none; }
+        .rank { color: gold; font-weight: bold; margin-left: 10px; }
+        :root { --red: #ff0000; --dark: #050505; }
+        body { background: var(--dark); color: white; margin: 0; font-family: sans-serif; text-align: center; }
+        .screen { display: none; padding: 20px; min-height: 100vh; flex-direction: column; align-items: center; }
+        .active { display: flex; }
+        .header { background: #111; padding: 15px; border-bottom: 2px solid var(--red); display: flex; justify-content: space-around; align-items: center; position: sticky; top: 0; z-index: 100; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 15px; max-width: 600px; width: 100%; margin-top: 20px; }
+        .lvl { height: 65px; background: #1a1a1a; border: 2px solid #333; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: not-allowed; opacity: 0.4; transition: 0.3s; font-weight: bold; font-size: 18px; }
+        .unlocked { border-color: var(--red); opacity: 1; cursor: pointer; box-shadow: 0 0 10px rgba(255,0,0,0.3); }
+        .completed { background: var(--red); border-color: white; color: white; }
+        .quiz-card { background: #111; padding: 30px; border-radius: 20px; width: 90%; max-width: 400px; border: 1px solid #222; }
+        .opt { width: 100%; padding: 15px; margin: 8px 0; background: #000; border: 1px solid #333; color: white; border-radius: 12px; cursor: pointer; text-align: right; font-size: 16px; }
+        .correct { background: #00ff00 !important; color: black; font-weight: bold; }
+        .wrong { background: #ff0000 !important; }
+        .nav-btn { background: #222; border: 1px solid #444; color: white; padding: 7px 15px; border-radius: 8px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="leaderboard-box">
+        <h3 style="color: gold;">🏆 باشترین یاریزانێن Quiz</h3>
+        <div id="leader-list">بارکرن...</div>
+    </div>
+
+    <div class="header">
+        <a href="index.html"><button class="nav-btn">🏠 Home</button></a>
+        <div id="u-info" style="font-size: 14px; color: gold; font-weight: bold;">Loading...</div>
+    </div>
+
+    <div id="map-screen" class="screen active">
+        <h2 style="color: var(--red);">نەخشێ ٣٠ لیڤلێن IT 🗺️</h2>
+        <div class="grid" id="lvl-grid"></div>
+    </div>
+
+    <div id="quiz-screen" class="screen">
+        <div class="quiz-card">
+            <div style="display:flex; justify-content:space-between; color:gold; margin-bottom:15px;">
+                <span id="cur-lvl-text">Level 1</span>
+                <span>ڕاست: <span id="correct-count">0</span> / 5</span>
+            </div>
+            <h3 id="q-text" style="min-height: 70px;">...</h3>
+            <div id="opts"></div>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyDeglQMPEjTP4PgaOdiIG-lDKqvdy27Epw",
+            authDomain: "dirojkrd.firebaseapp.com",
+            databaseURL: "https://dirojkrd-default-rtdb.firebaseio.com",
+            projectId: "dirojkrd",
+            storageBucket: "dirojkrd.firebasestorage.app",
+            messagingSenderId: "391319156899",
+            appId: "1:391319156899:web:fe825636e848eee4c66716"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.database();
+
+        const itQuestions = [
+            // لیڤل ١-٤٠ پسیارێن تە لێرە دێ بن (وەک تە دانای)
+            {q:"مێشکێ کۆمپیوتەری چییە؟", a:["RAM","CPU","Hard Drive"], c:1},
+            {q:"ئێکەیا پێڤانا خێراییا CPU؟", a:["Byte","Watt","GHz"], c:2},
+            {q:"کیش پارچە داتایان سەیڤ دکەت پشتی کۆمپیوتەر دهێتە گرتن؟", a:["RAM","SSD","Fan"], c:1},
+            {q:"RAM کورتکریا چییە؟", a:["Read Active Media","Remote Access","Random Access Memory"], c:2},
+            {q:"ناڤێ تەختەیا سەرەکی یا کۆمپیوتەری؟", a:["Motherboard","Keyboard","Dashboard"], c:0},
+            // ... پاقژکرنا لیستێ بۆ کورتکرنێ، بەس تە هەمی هەبن ...
+        ];
+
+        let maxUnlocked = 1;
+        let selectedQs = [];
+        let qIdx = 0;
+        let corrects = 0;
+        let currentLvlNum = 1;
+
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                // ١. وەرگرتنا ناڤێ دروست ژ Database
+                db.ref('all_players/' + user.uid).on('value', nSnap => {
+                    const realName = nSnap.val() ? nSnap.val().name : user.email.split('@')[0];
+                    
+                    // ٢. وەرگرتنا لیڤلێ ژ Database
+                    db.ref('users/' + user.uid + '/maxUnlocked').on('value', snap => {
+                        maxUnlocked = snap.val() || 1;
+                        // نیشاندانا ناڤێ دروست و لیڤلێ
+                        document.getElementById('u-info').innerHTML = `<span style="color:white">Player:</span> ${realName}<br><span style="color:white">Level:</span> ${maxUnlocked}`;
+                        renderMap();
+                    });
+                });
+                loadLeaderboard();
+            } else { location.href = "login.html"; }
+        });
+
+        function loadLeaderboard() {
+            const leaderList = document.getElementById('leader-list');
+            db.ref('users').orderByChild('maxUnlocked').limitToLast(5).on('value', snap => {
+                let players = [];
+                snap.forEach(child => { players.push({ id: child.key, lvl: child.val().maxUnlocked || 1 }); });
+                players.reverse();
+                leaderList.innerHTML = "";
+                players.forEach((p, index) => {
+                    db.ref('all_players/' + p.id).once('value', nSnap => {
+                        const name = nSnap.val() ? nSnap.val().name : "یاریزان";
+                        leaderList.innerHTML += `
+                            <div class="leader-item">
+                                <span><span class="rank">#${index + 1}</span> ${name}</span>
+                                <span style="color:#00ff00">Lvl: ${p.lvl}</span>
+                            </div>`;
+                    });
+                });
+            });
+        }
+
+        function renderMap() {
+            const grid = document.getElementById('lvl-grid');
+            grid.innerHTML = "";
+            for (let i = 1; i <= 30; i++) {
+                const node = document.createElement('div');
+                node.className = 'lvl';
+                if (i < maxUnlocked) { node.classList.add('unlocked', 'completed'); node.innerHTML = "✓"; node.onclick = () => startQuiz(i); }
+                else if (i == maxUnlocked) { node.classList.add('unlocked'); node.innerText = i; node.onclick = () => startQuiz(i); }
+                else { node.innerText = "🔒"; }
+                grid.appendChild(node);
+            }
+        }
+
+        function startQuiz(lvl) {
+            currentLvlNum = lvl;
+            let startIndex = (lvl - 1) * 5;
+            selectedQs = itQuestions.slice(startIndex, startIndex + 5);
+            if (selectedQs.length < 5) selectedQs = itQuestions.slice(0, 5); 
+            qIdx = 0; corrects = 0;
+            document.getElementById('map-screen').classList.remove('active');
+            document.getElementById('quiz-screen').classList.add('active');
+            showQuestion();
+        }
+
+        function showQuestion() {
+            if (qIdx >= 5) return finish();
+            document.getElementById('cur-lvl-text').innerText = "Level " + currentLvlNum;
+            document.getElementById('correct-count').innerText = corrects;
+            const q = selectedQs[qIdx];
+            document.getElementById('q-text').innerText = q.q;
+            const box = document.getElementById('opts');
+            box.innerHTML = "";
+            q.a.forEach((opt, i) => {
+                const b = document.createElement('button');
+                b.className = 'opt'; b.innerText = opt;
+                b.onclick = () => {
+                    document.querySelectorAll('.opt').forEach(btn => btn.disabled = true);
+                    if(i === q.c) { b.classList.add('correct'); corrects++; }
+                    else { b.classList.add('wrong'); }
+                    qIdx++;
+                    setTimeout(showQuestion, 800);
+                };
+                box.appendChild(b);
+            });
+        }
+
+        function finish() {
+            if (corrects >= 4) {
+                if (currentLvlNum == maxUnlocked && maxUnlocked < 30) {
+                    db.ref('users/' + auth.currentUser.uid).update({ maxUnlocked: maxUnlocked + 1 });
+                }
+                alert("🏆 پیرۆزە! تە لیڤل خلاس کر.");
+            } else { alert("❌ دووبارە هەوڵ بدە (دڤێت ٤ ڕاست بن)."); }
+            goBackToMap();
+        }
+
+        function goBackToMap() {
+            document.getElementById('quiz-screen').classList.remove('active');
+            document.getElementById('map-screen').classList.add('active');
+        }
+    </script>
+</body>
+</html>

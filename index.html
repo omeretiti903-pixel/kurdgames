@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ku" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>Kurd Games | Home</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <style>
+        :root { --accent: #00d2ff; --bg: #0b0e14; --card: #161b22; --text: #e6edf3; --red: #ff4747; --green: #2ecc71; }
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; text-align: center; }
+
+        .header { background: var(--card); padding: 15px 20px; border-bottom: 1px solid #30363d; display: flex; align-items: center; justify-content: space-between; }
+        .user-box { display: flex; align-items: center; gap: 10px; cursor: pointer; padding: 5px; border-radius: 10px; transition: 0.2s; }
+        .user-box:hover { background: rgba(255,255,255,0.05); }
+        .user-img { width: 45px; height: 45px; border-radius: 12px; border: 2px solid var(--accent); object-fit: cover; }
+
+        .menu { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 25px; max-width: 600px; margin: auto; }
+        .game-card { background: var(--card); padding: 30px 10px; border-radius: 20px; border: 1px solid #30363d; cursor: pointer; transition: 0.3s; }
+        .game-card:hover { border-color: var(--red); transform: translateY(-5px); }
+        .game-card h3 { margin: 0; color: var(--red); font-size: 22px; }
+
+        .friends-toggle { position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); background: var(--accent); color: black; padding: 12px 30px; border-radius: 50px; font-weight: bold; cursor: pointer; z-index: 1000; }
+        #friends-panel { position: fixed; bottom: -100%; left: 0; width: 100%; height: 85vh; background: var(--card); border-top: 2px solid var(--accent); border-radius: 30px 30px 0 0; transition: 0.5s; z-index: 1001; padding: 20px; box-sizing: border-box; overflow-y: auto; }
+        #friends-panel.open { bottom: 0; }
+        .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; }
+
+        .search-container { display: flex; gap: 8px; margin-bottom: 10px; }
+        input { flex: 1; background: #0d1117; border: 1px solid #333; color: white; padding: 12px; border-radius: 10px; outline: none; }
+        .btn-search { background: var(--accent); color: black; border: none; padding: 0 15px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+        
+        #search-result { background: #1c2128; border-radius: 12px; padding: 12px; margin-top: 10px; display: none; align-items: center; justify-content: space-between; border: 1px solid var(--accent); }
+        .res-img { width: 45px; height: 45px; border-radius: 50%; border: 2px solid var(--accent); }
+
+        .f-item { display: flex; align-items: center; justify-content: space-between; padding: 12px; background: rgba(255,255,255,0.05); border-radius: 15px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="overlay" id="overlay" onclick="toggleFriends()"></div>
+
+    <div class="header">
+        <div class="user-box" onclick="location.href='profile.html'">
+            <img id="profile-pic" src="https://via.placeholder.com/150" class="user-img">
+            <div style="text-align: right;">
+                <h4 id="user-name" style="margin:0; font-size:14px;">یاریزان</h4>
+                <small id="user-id" style="color: var(--accent);">ID: ---</small>
+            </div>
+        </div>
+        <button onclick="auth.signOut()" style="background:none; border:none; color:gray; cursor:pointer;">Logout</button>
+    </div>
+
+    <h1 style="margin-top: 40px; color: var(--red); letter-spacing: 2px;">KURD GAMES</h1>
+
+    <div class="menu">
+        <div class="game-card" onclick="location.href='quiz_game.html'"><h3>QUIZ</h3></div>
+        <div class="game-card" onclick="location.href='xo.html'"><h3>X - O</h3></div>
+        <div class="game-card" onclick="location.href='rps.html'"><h3>R-P-S</h3></div>
+        <div class="game-card" style="opacity:0.3;"><h3>SOON</h3></div>
+    </div>
+
+    <div class="friends-toggle" onclick="toggleFriends()">👥 هەڤال و لێگەریان</div>
+
+    <div id="friends-panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <h2 style="margin:0; color:var(--accent); font-size:20px;">👥 لیستا هەڤالا</h2>
+            <button onclick="toggleFriends()" style="background:none; border:none; color:white; font-size:25px;">✕</button>
+        </div>
+
+        <div class="search-container">
+            <input type="text" id="search-id" placeholder="ئایدیێ هەڤالێ خۆ بنڤیسە...">
+            <button class="btn-search" onclick="searchFriend()">🔍 لێگەریان</button>
+        </div>
+
+        <div id="search-result">
+            <div style="display:flex; align-items:center; gap:12px;">
+                <img id="res-pic" src="" class="res-img">
+                <div style="text-align:right;">
+                    <b id="res-name" style="display:block;"></b>
+                    <small style="color:var(--accent);">یاریزان دۆزرایەوە</small>
+                </div>
+            </div>
+            <button id="res-btn" style="background:var(--green); border:none; padding:8px 15px; border-radius:8px; color:white; font-weight:bold;">Add</button>
+        </div>
+
+        <div id="req-list" style="margin-top:15px;"></div>
+        <h3 style="text-align:right; font-size:16px; margin: 20px 0 10px;">هەڤالێن من:</h3>
+        <div id="f-list" style="text-align:right;"></div>
+    </div>
+
+    <script>
+        const config = { 
+            apiKey: "AIzaSyDeglQMPEjTP4PgaOdiIG-lDKqvdy27Epw", 
+            databaseURL: "https://dirojkrd-default-rtdb.firebaseio.com", 
+            projectId: "dirojkrd" 
+        };
+        firebase.initializeApp(config);
+        const auth = firebase.auth();
+        const db = firebase.database();
+
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                const nId = user.uid.replace(/\D/g, '').substring(0, 8);
+                
+                db.ref('all_players/' + user.uid).on('value', snap => {
+                    const d = snap.val() || {};
+                    
+                    // گرنگترین پشک: ئەگەر د داتابەیسێ دا وێنە نەبوو، وێنێ ئیمەیلێ بکار بینە
+                    const userPhoto = d.pic || user.photoURL || "https://via.placeholder.com/150";
+                    
+                    document.getElementById('user-name').innerText = d.name || user.displayName || "یاریزان";
+                    document.getElementById('profile-pic').src = userPhoto;
+                    document.getElementById('user-id').innerText = "ID: " + (d.numericID || nId);
+
+                    // ئەگەر وێنە د داتابەیسێ دا نەبوو بەس د ئیمەیلێ دا هەبوو، بلا پاشکەفت ببیت
+                    if(!d.pic && user.photoURL) {
+                        db.ref('all_players/' + user.uid).update({ pic: user.photoURL });
+                    }
+                });
+
+                db.ref('all_players/' + user.uid).update({ numericID: nId });
+                loadFriends();
+                listenRequests();
+            } else { location.href = "login.html"; }
+        });
+
+        function searchFriend() {
+            const sid = document.getElementById('search-id').value.trim();
+            if(!sid) return;
+            db.ref('all_players').once('value', snap => {
+                let found = null;
+                snap.forEach(c => {
+                    if(c.val().numericID === sid && c.key !== auth.currentUser.uid) found = { uid: c.key, ...c.val() };
+                });
+                if(found) {
+                    document.getElementById('search-result').style.display = 'flex';
+                    document.getElementById('res-name').innerText = found.name;
+                    document.getElementById('res-pic').src = found.pic || "https://via.placeholder.com/150";
+                    document.getElementById('res-btn').onclick = () => sendReq(found.uid, found.name);
+                } else { alert("ئەڤ ئایدیە نەهاتە دیتن!"); }
+            });
+        }
+
+        function sendReq(targetUid, targetName) {
+            const myName = document.getElementById('user-name').innerText;
+            db.ref('friend_requests/' + targetUid + '/' + auth.currentUser.uid).set({ fromName: myName })
+            .then(() => { alert("داخوازی بۆ " + targetName + " فرێدرا!"); document.getElementById('search-result').style.display = 'none'; });
+        }
+
+        function listenRequests() {
+            db.ref('friend_requests/' + auth.currentUser.uid).on('value', snap => {
+                const list = document.getElementById('req-list');
+                list.innerHTML = "";
+                snap.forEach(c => {
+                    list.innerHTML += `<div style="background:rgba(0,210,255,0.1); padding:10px; border-radius:10px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+                        <span>🔔 ${c.val().fromName}</span>
+                        <div>
+                            <button onclick="acceptF('${c.key}')" style="background:var(--green); border:none; color:white; padding:5px 10px; border-radius:5px; margin-left:5px;">Accept</button>
+                            <button onclick="declineF('${c.key}')" style="background:var(--red); border:none; color:white; padding:5px 10px; border-radius:5px;">X</button>
+                        </div>
+                    </div>`;
+                });
+            });
+        }
+
+        function acceptF(uid) {
+            db.ref('users/' + auth.currentUser.uid + '/friends/' + uid).set(true);
+            db.ref('users/' + uid + '/friends/' + auth.currentUser.uid).set(true);
+            db.ref('friend_requests/' + auth.currentUser.uid + '/' + uid).remove();
+        }
+
+        function declineF(uid) { db.ref('friend_requests/' + auth.currentUser.uid + '/' + uid).remove(); }
+
+        function loadFriends() {
+            db.ref('users/' + auth.currentUser.uid + '/friends').on('value', snap => {
+                const list = document.getElementById('f-list');
+                list.innerHTML = "";
+                snap.forEach(c => {
+                    db.ref('all_players/' + c.key).once('value', pSnap => {
+                        const p = pSnap.val();
+                        if(p) list.innerHTML += `<div class="f-item"><span>👤 ${p.name}</span> <small style="color:var(--accent)">Online</small></div>`;
+                    });
+                });
+            });
+        }
+
+        function toggleFriends() {
+            const p = document.getElementById('friends-panel');
+            const o = document.getElementById('overlay');
+            p.classList.toggle('open');
+            o.style.display = p.classList.contains('open') ? 'block' : 'none';
+        }
+    </script>
+</body>
+</html>

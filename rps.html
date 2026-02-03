@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ku" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPS Pro | Full Multiplayer</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <style>
+        .home-btn {
+    position: fixed;
+    top: 20px;
+    right: 20px; /* دێ ل لایێ ڕاستێ بیت چونکی زمان عەرەبی/کوردییە */
+    padding: 12px 20px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(0, 210, 255, 0.5);
+    backdrop-filter: blur(10px);
+    color: white;
+    border-radius: 15px;
+    cursor: pointer;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 9999;
+    transition: 0.3s all ease;
+    text-decoration: none;
+}
+
+.home-btn:hover {
+    background: var(--accent);
+    color: black;
+    box-shadow: 0 0 20px var(--accent);
+    transform: translateY(-3px);
+}
+
+.home-btn svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+}
+        :root { --accent: #00d2ff; --bg: #0b0e14; --card: #161b22; --online: #2ecc71; --busy: #e74c3c; }
+        body { background: var(--bg); color: white; font-family: sans-serif; margin: 0; overflow: hidden; }
+        
+        #menu-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 3000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 15px; }
+        .menu-btn { width: 260px; padding: 18px; border-radius: 12px; border: 2px solid var(--accent); background: var(--card); color: white; font-size: 18px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .menu-btn:hover { background: var(--accent); color: black; }
+        
+        #friends-panel { position: fixed; bottom: -100%; left: 0; width: 100%; height: 70vh; background: var(--card); border-top: 3px solid var(--accent); border-radius: 30px 30px 0 0; transition: 0.5s; z-index: 4000; padding: 25px; box-sizing: border-box; overflow-y: auto; }
+        #friends-panel.open { bottom: 0; }
+        .f-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #000; border-radius: 15px; margin-bottom: 10px; border: 1px solid #333; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-left: 8px; }
+        .online { background: var(--online); box-shadow: 0 0 8px var(--online); }
+        .offline { background: #555; }
+        .busy { background: var(--busy); }
+
+        #back-btn { position: fixed; top: 20px; left: 20px; z-index: 4000; background: rgba(255,255,255,0.1); border: 1px solid var(--accent); color: white; padding: 10px 20px; border-radius: 30px; cursor: pointer; display: none; }
+        .top-hud { position: fixed; top: 15px; width: 100%; display: flex; justify-content: space-around; font-size: 28px; font-weight: bold; z-index: 100; visibility: hidden; }
+        .game-board { display: flex; height: 100vh; width: 100vw; align-items: center; justify-content: center; gap: 10px; padding: 15px; box-sizing: border-box; visibility: hidden; }
+        .box { flex: 1; height: 75vh; position: relative; background: var(--card); border: 2px solid #333; border-radius: 30px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        #webcam { position: absolute; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+        .emoji { font-size: 130px; z-index: 10; }
+        #countdown { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 40px; font-weight: bold; color: var(--accent); z-index: 1000; text-align: center; pointer-events: none; }
+
+        #win-modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.8); background: var(--card); border: 3px solid var(--accent); border-radius: 25px; padding: 40px; text-align: center; z-index: 5000; display: none; }
+        #win-modal.show { transform: translate(-50%, -50%) scale(1); display: block; }
+    </style>
+</head>
+<body>
+<a href="index.html" class="home-btn">
+    <svg viewBox="0 0 24 24">
+        <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+    </svg>
+    سەرەکی
+</a>
+    <div id="win-modal">
+        <div id="win-icon" style="font-size: 70px;">🏆</div>
+        <h2 id="win-text">تە بردی!</h2>
+        <button class="menu-btn" onclick="location.reload()">بەردەوام بە</button>
+    </div>
+
+    <div id="back-btn" onclick="location.reload()">🔙 پاشڤە</div>
+
+    <div id="menu-overlay">
+        <h1 style="color: var(--accent);">RPS ONLINE</h1>
+        <button class="menu-btn" onclick="startBotGame()">🤖 یاری دگەل ربۆتی</button>
+        <button class="menu-btn" onclick="toggleFriends()">👥 یاری دگەل هەڤالان</button>
+    </div>
+
+    <div id="friends-panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h2>هەڤالێن ئۆنلاین</h2>
+            <button onclick="toggleFriends()" style="background:none; border:none; color:white; font-size:30px;">✕</button>
+        </div>
+        <div id="friends-list"></div>
+    </div>
+
+    <div id="countdown"></div>
+    <div class="top-hud" id="hud">
+        <div>تۆ: <span id="u-score">0</span></div>
+        <div id="opp-name" style="color:var(--accent)">رکابەر</div>
+        <div><span id="o-score">0</span></div>
+    </div>
+
+    <div class="game-board" id="board">
+        <div class="box"><video id="webcam" autoplay playsinline></video><div id="u-move" class="emoji"></div></div>
+        <div class="box"><div id="o-move" class="emoji">❔</div></div>
+    </div>
+
+    <script>
+        const config = { apiKey: "AIzaSyDeglQMPEjTP4PgaOdiIG-lDKqvdy27Epw", databaseURL: "https://dirojkrd-default-rtdb.firebaseio.com", projectId: "dirojkrd" };
+        firebase.initializeApp(config);
+        const db = firebase.database();
+        const auth = firebase.auth();
+
+        let myId, gameId = null, role = null, uScore = 0, oScore = 0, curGesture = "Rock", handDetected = false, isMultiplayer = false;
+
+        auth.onAuthStateChanged(user => {
+            if(user) {
+                myId = user.uid;
+                db.ref(`status/${myId}`).set('online');
+                db.ref(`status/${myId}`).onDisconnect().set('offline');
+                loadFriends();
+                listenForInvites();
+            }
+        });
+
+        // --- چاکسازییا لیستا هەڤالان ---
+        function loadFriends() {
+            db.ref('users/' + myId + '/friends').on('value', snap => {
+                const list = document.getElementById('friends-list');
+                list.innerHTML = "";
+                if(!snap.exists()) { list.innerHTML = "<p style='text-align:center;color:gray;'>لیستا هەڤالان یا ڤالایە</p>"; return; }
+
+                snap.forEach(c => {
+                    const friendId = c.key;
+                    db.ref('all_players/' + friendId).once('value', pSnap => {
+                        const p = pSnap.val();
+                        if(p) {
+                            db.ref(`status/${friendId}`).on('value', sSnap => {
+                                const status = sSnap.val() || 'offline';
+                                const itemID = `f-${friendId}`;
+                                let existing = document.getElementById(itemID);
+                                const html = `
+                                    <div class="f-item" id="${itemID}">
+                                        <span><span class="status-dot ${status}"></span> ${p.name}</span>
+                                        ${status === 'online' ? `<button class="menu-btn" style="width:100px; padding:8px;" onclick="sendInvite('${friendId}')">Invite</button>` : `<span style='color:gray; font-size:12px;'>${status}</span>`}
+                                    </div>`;
+                                if(existing) existing.outerHTML = html; else list.innerHTML += html;
+                            });
+                        }
+                    });
+                });
+            });
+        }
+
+        function sendInvite(targetId) {
+            const id = `game_${Math.random().toString(36).substr(2, 9)}`;
+            db.ref(`invites/${targetId}`).set({ from: myId, gameId: id });
+            startMultiGame(id, 'p1');
+        }
+
+        function listenForInvites() {
+            db.ref(`invites/${myId}`).on('value', snap => {
+                const data = snap.val();
+                if(data) {
+                    if(confirm("داخوازا یاریێ ل تە هات، قەبیل دکەی؟")) {
+                        db.ref(`invites/${myId}`).remove();
+                        startMultiGame(data.gameId, 'p2');
+                    }
+                }
+            });
+        }
+
+        function startMultiGame(id, r) {
+            gameId = id; role = r; isMultiplayer = true;
+            setupUI();
+            db.ref(`status/${myId}`).set('busy');
+            db.ref(`games/${gameId}`).on('value', snap => {
+                const data = snap.val();
+                if(!data) return;
+                uScore = (role === 'p1') ? (data.p1Score || 0) : (data.p2Score || 0);
+                oScore = (role === 'p1') ? (data.p2Score || 0) : (data.p1Score || 0);
+                document.getElementById('u-score').innerText = uScore;
+                document.getElementById('o-score').innerText = oScore;
+                if(uScore >= 5 || oScore >= 5) showWin(uScore >= 5);
+            });
+            nextRound();
+        }
+
+        function setupUI() {
+            document.getElementById('menu-overlay').style.display = 'none';
+            document.getElementById('friends-panel').classList.remove('open');
+            document.getElementById('board').style.visibility = 'visible';
+            document.getElementById('hud').style.visibility = 'visible';
+            document.getElementById('back-btn').style.display = 'block';
+        }
+
+        function nextRound() {
+            if(uScore >= 5 || oScore >= 5) return;
+            resetRoundUI();
+            let c = 3;
+            const cd = document.getElementById('countdown');
+            const t = setInterval(() => {
+                cd.innerText = c > 0 ? c : "نیشان بدە! 👋";
+                if(c < 0) { clearInterval(t); cd.innerText = ""; checkFinalGesture(); }
+                c--;
+            }, 1000);
+        }
+
+        function checkFinalGesture() {
+            if(isMultiplayer) {
+                db.ref(`games/${gameId}/${role}Move`).set(curGesture);
+                syncMultiResults();
+            } else { evaluateBotRound(); }
+        }
+
+        function syncMultiResults() {
+            db.ref(`games/${gameId}`).once('value', snap => {
+                const d = snap.val();
+                if(d.p1Move && d.p2Move) {
+                    const emojis = {Rock:'✊', Paper:'✋', Scissors:'✌️'};
+                    document.getElementById('u-move').innerText = emojis[role==='p1'?d.p1Move:d.p2Move];
+                    document.getElementById('o-move').innerText = emojis[role==='p1'?d.p2Move:d.p1Move];
+                    
+                    if(role === 'p1') {
+                        let s1 = d.p1Score || 0, s2 = d.p2Score || 0;
+                        if(d.p1Move !== d.p2Move) {
+                            if((d.p1Move==='Rock'&&d.p2Move==='Scissors')||(d.p1Move==='Paper'&&d.p2Move==='Rock')||(d.p1Move==='Scissors'&&d.p2Move==='Paper')) s1++;
+                            else s2++;
+                        }
+                        setTimeout(() => db.ref(`games/${gameId}`).update({p1Score: s1, p2Score: s2, p1Move:null, p2Move:null}), 2000);
+                    }
+                    setTimeout(nextRound, 3000);
+                } else {
+                    document.getElementById('countdown').innerText = "ل چاڤەڕێیا هەڤالی...";
+                    setTimeout(syncMultiResults, 1000);
+                }
+            });
+        }
+
+        function startBotGame() { isMultiplayer = false; setupUI(); nextRound(); }
+
+        function evaluateBotRound() {
+            const moves = ['Rock', 'Paper', 'Scissors'];
+            const emojis = {Rock:'✊', Paper:'✋', Scissors:'✌️'};
+            const uM = curGesture;
+            const oM = moves[Math.floor(Math.random()*3)];
+            document.getElementById('u-move').innerText = emojis[uM];
+            document.getElementById('o-move').innerText = emojis[oM];
+            if(uM !== oM) {
+                if((uM==='Rock'&&oM==='Scissors')||(uM==='Paper'&&oM==='Rock')||(uM==='Scissors'&&oM==='Paper')) uScore++;
+                else oScore++;
+            }
+            document.getElementById('u-score').innerText = uScore;
+            document.getElementById('o-score').innerText = oScore;
+            if(uScore >= 5 || oScore >= 5) showWin(uScore >= 5);
+            else setTimeout(nextRound, 2000);
+        }
+
+        function resetRoundUI() { document.getElementById('u-move').innerText = ""; document.getElementById('o-move').innerText = "❔"; document.getElementById('countdown').innerText = ""; }
+        function toggleFriends() { document.getElementById('friends-panel').classList.toggle('open'); }
+        function showWin(isMe) {
+            const m = document.getElementById('win-modal');
+            document.getElementById('win-text').innerText = isMe ? "🏆 پیرۆزە تە بردی!" : "💀 تو دۆڕاندی!";
+            m.style.display = 'block'; setTimeout(() => m.classList.add('show'), 10);
+        }
+
+        // --- MediaPipe Logic ---
+        const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+        hands.setOptions({maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6});
+        hands.onResults(res => {
+            handDetected = !!(res.multiHandLandmarks && res.multiHandLandmarks[0]);
+            if(handDetected) {
+                const lm = res.multiHandLandmarks[0];
+                const isIndexUp = lm[8].y < lm[6].y;
+                const isMiddleUp = lm[12].y < lm[10].y;
+                const isRingUp = lm[16].y < lm[14].y;
+                if(isIndexUp && isMiddleUp && isRingUp) curGesture = "Paper";
+                else if(isIndexUp && isMiddleUp && !isRingUp) curGesture = "Scissors";
+                else curGesture = "Rock";
+            }
+        });
+        const camera = new Camera(document.getElementById('webcam'), {onFrame: async () => await hands.send({image: document.getElementById('webcam')})});
+        camera.start();
+    </script>
+</body>
+</html>
